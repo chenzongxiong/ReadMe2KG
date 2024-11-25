@@ -80,7 +80,9 @@ class Analyzer:
         with open(os.path.join(path, 'result.json'), 'w') as fd:
             json.dump(self.data, fd)
 
-    def run_kmeans(self, num_clusters=5, top_n=10):
+    def run_kmeans(self, num_clusters=8, top_n=100):
+        num_clusters = 8 if num_clusters is None else num_clusters
+
         self.cfg['kmeans:num_clusters'] = num_clusters
         self.cfg['kmeans:top_n'] = top_n
         self.cfg['kmeans'] = True
@@ -99,19 +101,38 @@ class Analyzer:
         self.data['kmeans'] = keywords
         return self
 
-    def run_pca(self, n_components, top_n):
+    def run_pca(self, n_components=None, top_n=100):
         self.cfg['pca:n_components'] = n_components
         self.cfg['pca:top_n'] = top_n
         self.cfg['pca'] = True
         pca = PCA(n_components=n_components)
-        pca_result = pca.fit_transform(self.transformed_documents.toarray())
+        pca.fit(self.transformed_documents.toarray())
+
+        explained_variance = pca.explained_variance_ratio_
+        cumulative_variance = explained_variance.cumsum()
+
+        # Use the cumulative explained variance ratio to decide how many components to retain. Typically, choose enough components to capture 90%-95% of the variance.
+        num_components = (cumulative_variance >= 0.95).argmax() + 1
         terms = self.vectorizer.get_feature_names_out()
-        keywords = [terms[i] for i in pca.components_[0].argsort()[-top_n:]]
+        keywords = []
+        for component_idx in range(num_components):
+            keywords.append([terms[i] for i in pca.components_[component_idx].argsort()[-top_n:][::-1]])
+
         print(f"Principal Keywords: {keywords}")
+
         self.data['pca'] = keywords
+        # import matplotlib.pyplot as plt
+        # plt.figure(figsize=(8, 5))
+        # plt.plot(range(1, len(cumulative_variance)+1), cumulative_variance, marker='o', linestyle='--')
+        # plt.title('Cumulative Explained Variance by PCA Components')
+        # plt.xlabel('Number of Components')
+        # plt.ylabel('Cumulative Explained Variance')
+        # plt.axhline(y=0.95, color='r', linestyle='--')
+        # plt.grid(True)
+        # plt.show()
         return self
 
-    def run_lda(self, n_components, top_n):
+    def run_lda(self, n_components, top_n=100):
         self.cfg['lda:n_components'] = n_components
         self.cfg['lda:top_n'] = top_n
         self.cfg['lda'] = True
@@ -125,7 +146,7 @@ class Analyzer:
         self.data['lda'] = keywords
         return self
 
-    def run_dbscan(self, min_cluster_size=3, top_n=10):
+    def run_dbscan(self, min_cluster_size=3, top_n=100):
         # FIXME: Not test yet
         self.cfg['dbscan:min_cluster_size'] = min_cluster_size
         self.cfg['dbscan:top_n'] = top_n
@@ -228,18 +249,6 @@ class ReadmeAnalyzer(Analyzer):
         return documents
 
 
-def get_parse():
-    parser = argparse.ArgumentParser(description="Analyzer")
-
-    parser.add_argument('--n_components', type=int, default=5)
-    parser.add_argument('--top_n', type=int, default=10)
-    parser.add_argument('--readme', action='store_true')
-    parser.add_argument('--arxiv', action='store_true')
-    parser.add_argument('--debug', action='store_true')
-
-    return parser
-
-
 def analyze_readme(args):
     print("############################## ReadMe ##############################")
     # Get all README file paths
@@ -264,7 +273,9 @@ def analyze_readme(args):
     # analyzer.vectorize().run_lda(n_components, top_n).save()
     # # DBScan
     # analyzer.vectorize().run_dbscan(min_cluster_size, top_n).save()
-    tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan'])
+
+    method_list = ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan']
+    tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in method_list)
     for task in tasks:
         task.save()
 
@@ -290,10 +301,22 @@ def analyze_arxiv(args):
     # analyzer.vectorize().run_lda(n_components, top_n).save()
     # # DBScan
     # analyzer.vectorize().run_dbscan(min_cluster_size, top_n).save()
-
-    tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan'])
+    method_list = ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan']
+    tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in method_list)
     for task in tasks:
         task.save()
+
+
+def get_parse():
+    parser = argparse.ArgumentParser(description="Analyzer")
+
+    parser.add_argument('--n_components', type=int, default=None)
+    parser.add_argument('--top_n', type=int, default=100)
+    parser.add_argument('--readme', action='store_true')
+    parser.add_argument('--arxiv', action='store_true')
+    parser.add_argument('--debug', action='store_true')
+
+    return parser
 
 
 def main(args):

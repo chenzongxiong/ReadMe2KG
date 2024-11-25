@@ -14,6 +14,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 import hashlib
 import json
+import argparse
 
 nltk.download('stopwords')
 nltk.download('punkt_tab')
@@ -108,6 +109,7 @@ class Analyzer:
         return self
 
     def run_dbscan(self, min_cluster_size=3, top_n=10):
+        # FIXME: Not test yet
         self.cfg['dbscan:min_cluster_size'] = min_cluster_size
         self.cfg['dbscan:top_n'] = top_n
         self.cfg['dbscan'] = True
@@ -149,11 +151,26 @@ class ArxivAnalyzer(Analyzer):
         self.documents = self.process_file(file_path)
 
     def process_file(self, file_path):
-        df = pd.read_csv(file_path)
-        documents = df['abstract'].tolist()
         if self.debug is True:
-            documents = documents[:100]
+            df = pd.read_csv(file_path, nrows=100)
+        else:
+            df = pd.read_csv(file_path)
+
+        documents = df['abstract'].tolist()
+        cleaned_documents = []
+
+        for idx, document in enumerate(documents):
+            document = self.preprocess_text(document)
+            cleaned_documents.append(document)
+
         return documents
+
+    def preprocess_text(self, text):
+        stop_words = set(nltk.corpus.stopwords.words('english'))
+        lemmatizer = WordNetLemmatizer()
+        tokens = word_tokenize(text.lower())
+        tokens = [lemmatizer.lemmatize(word) for word in tokens if word not in stop_words and word not in string.punctuation]
+        return tokens
 
 
 class ReadmeAnalyzer(Analyzer):
@@ -161,8 +178,8 @@ class ReadmeAnalyzer(Analyzer):
         super().__init__(**kwargs)
         self.documents = self.process_all_files(file_paths)
 
-    def preprocess_readme(self, text):
-        return text
+    # def preprocess_readme(self, text):
+    #     return text
 
     def process_file(self, file_path):
         with open(file_path, 'r', encoding='utf-8') as file:
@@ -170,52 +187,57 @@ class ReadmeAnalyzer(Analyzer):
         return self.preprocess_readme(raw_text)
 
     def process_all_files(self, file_paths):
-        self._impl_notes.append('use raw text')
+        # self._impl_notes.append('use raw text')
+        self._impl_notes.append('clean markdown and html tags')
+
+        if self.debug is True:
+            file_paths = file_paths[:100]
+
         documents = []
         for idx, file_path in enumerate(file_paths):
-            if self.debug is True and idx >= 100:
-                break
             document = self.process_file(file_path)
             documents.append(document)
 
         return documents
 
-    # def preprocess_readme(text):
-    #     stop_words = set(nltk.corpus.stopwords.words('english'))
-    #     lemmatizer = WordNetLemmatizer()
-    #     tokens = word_tokenize(text.lower())
-    #     tokens = [lemmatizer.lemmatize(word) for word in tokens if word not in stop_words and word not in string.punctuation]
-    #     return tokens
+    def preprocess_readme(self, text):
+        """Clean and preprocess README content."""
+        # Remove Markdown or HTML tags
+        text = re.sub(r'\[.*?\]\(.*?\)', '', text)  # Remove Markdown links
+        text = BeautifulSoup(text, "html.parser").get_text()  # Parse HTML
+        # Remove special characters and digits
+        text = re.sub(r'[^a-zA-Z\s]', '', text)
+        # Normalize whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
 
-    # def preprocess_readme(text):
-    #     """Clean and preprocess README content."""
-    #     # Remove Markdown or HTML tags
-    #     text = re.sub(r'\[.*?\]\(.*?\)', '', text)  # Remove Markdown links
-    #     text = BeautifulSoup(text, "html.parser").get_text()  # Parse HTML
-    #     # Remove special characters and digits
-    #     text = re.sub(r'[^a-zA-Z\s]', '', text)
-    #     # Normalize whitespace
-    #     text = re.sub(r'\s+', ' ', text).strip()
-    #     return text
+def get_parse():
+    parser = argparse.ArgumentParser(description="Analyzer")
+
+    parser.add_argument('--n_components', type=int, default=5)
+    parser.add_argument('--top_n', type=int, default=10)
+    parser.add_argument('--readme', action='store_true')
+    parser.add_argument('--arxiv', action='store_true')
+    parser.add_argument('--debug', action='store_true')
+
+    return parser
 
 
-
-if __name__ == "__main__":
-    debug = True
+def analyze_readme(args):
     print("############################## ReadMe ##############################")
     # Get all README file paths
     file_paths = [os.path.join('data/readmes', f) for f in os.listdir('data/readmes') if f.endswith(('.txt', '.md'))]
 
     print(f"Found {len(file_paths)} README files.")
 
-    # Extract keywords
-    analyzer = ReadmeAnalyzer(file_paths, debug=debug)
+    analyzer = ReadmeAnalyzer(file_paths, debug=args.debug)
 
-    n_components = 10
+    top_n = args.top_n
+    n_components = args.n_components
+
     min_cluster_size = n_components
     num_clusters = n_components
 
-    top_n = 10
     # KMeans
     num_clusters = n_components
     analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
@@ -227,19 +249,18 @@ if __name__ == "__main__":
     analyzer.vectorize().run_dbscan(min_cluster_size, top_n).save()
 
 
-    ################################################################################
+def analyze_arxiv(args):
     print("############################## ARXIV ##############################")
     # Get Arxiv
     file_path = './data/2975_arxiv_metadata.csv'
 
-    # Extract keywords
-    analyzer = ArxivAnalyzer(file_path, debug=debug)
+    analyzer = ArxivAnalyzer(file_path, debug=args.debug)
 
-    n_components = 10
+    n_components = args.n_components
     min_cluster_size = n_components
     num_clusters = n_components
 
-    top_n = 10
+    top_n = args.top_n
     # KMeans
     num_clusters = n_components
     analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
@@ -249,3 +270,17 @@ if __name__ == "__main__":
     analyzer.vectorize().run_lda(n_components, top_n).save()
     # DBScan
     analyzer.vectorize().run_dbscan(min_cluster_size, top_n).save()
+
+
+def main(args):
+    ################################################################################
+    if args.readme:
+        analyze_readme(args)
+    if args.arxiv:
+        analyze_arxiv(args)
+
+
+if __name__ == "__main__":
+    parser = get_parse()
+    args = parser.parse_args()
+    main(args)

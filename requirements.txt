@@ -1,0 +1,7 @@
+arxiv
+pandas
+ipdb
+scikit-learn
+nltk
+beautifulsoup4
+hdbscan

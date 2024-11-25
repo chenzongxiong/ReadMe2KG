@@ -23,7 +23,7 @@ nltk.download('wordnet')
 
 class Analyzer:
     def __init__(self, **kwargs):
-        self._impl_notes = []
+        self._impl_notes = set()
         self.documents = []
         self.vectorizer = None
         self.transformed_documents = None
@@ -33,7 +33,7 @@ class Analyzer:
 
     @property
     def impl_notes(self):
-        return ','.join(self._impl_notes)
+        return ','.join(sorted(self._impl_notes))
 
     def get_version(self, kwargs):
         serialized_string = json.dumps(kwargs, sort_keys=True)
@@ -53,7 +53,24 @@ class Analyzer:
 
     def save(self, base_path='results'):
         self.cfg['impl_notes'] = self.impl_notes
-        version = self.get_version(self.cfg)
+        # version = self.get_version(self.cfg)
+        if self.cfg.get('kmeans', False):
+            num_clusters = self.cfg['kmeans:num_clusters']
+            top_n = self.cfg['kmeans:top_n']
+            version = f'kmeans-cluster_{num_clusters}-topn_{top_n}'
+        elif self.cfg.get('pca', False):
+            n_components = self.cfg['pca:n_components']
+            top_n = self.cfg['pca:top_n']
+            version = f'pca-components_{n_components}-topn_{top_n}'
+        elif self.cfg.get('lda', False):
+            n_components = self.cfg['lda:n_components']
+            top_n = self.cfg['lda:top_n']
+            version = f'lda-components_{n_components}-topn_{top_n}'
+        elif self.cfg.get('dbscan', False):
+            min_cluster_size = self.cfg['dbscan:min_cluster_size']
+            top_n = self.cfg['dbscan:top_n']
+            version = f'dbscan-clusetr_{min_cluster_size}-topn_{top_n}'
+
         path = os.path.join(base_path, version)
         os.makedirs(path, exist_ok=True)
 
@@ -178,18 +195,28 @@ class ReadmeAnalyzer(Analyzer):
         super().__init__(**kwargs)
         self.documents = self.process_all_files(file_paths)
 
-    # def preprocess_readme(self, text):
-    #     return text
+    def preprocess_readme_v1(self, text):
+        self._impl_notes.append('use raw text')
+        return text
+
+    def preprocess_readme_v2(self, text):
+        """Clean and preprocess README content."""
+        self._impl_notes.add('clean markdown and html tags')
+        # Remove Markdown or HTML tags
+        text = re.sub(r'\[.*?\]\(.*?\)', '', text)  # Remove Markdown links
+        text = BeautifulSoup(text, "html.parser").get_text()  # Parse HTML
+        # Remove special characters and digits
+        text = re.sub(r'[^a-zA-Z\s]', '', text)
+        # Normalize whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
 
     def process_file(self, file_path):
         with open(file_path, 'r', encoding='utf-8') as file:
             raw_text = file.read()
-        return self.preprocess_readme(raw_text)
+        return self.preprocess_readme_v2(raw_text)
 
     def process_all_files(self, file_paths):
-        # self._impl_notes.append('use raw text')
-        self._impl_notes.append('clean markdown and html tags')
-
         if self.debug is True:
             file_paths = file_paths[:100]
 
@@ -200,16 +227,6 @@ class ReadmeAnalyzer(Analyzer):
 
         return documents
 
-    def preprocess_readme(self, text):
-        """Clean and preprocess README content."""
-        # Remove Markdown or HTML tags
-        text = re.sub(r'\[.*?\]\(.*?\)', '', text)  # Remove Markdown links
-        text = BeautifulSoup(text, "html.parser").get_text()  # Parse HTML
-        # Remove special characters and digits
-        text = re.sub(r'[^a-zA-Z\s]', '', text)
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text
 
 def get_parse():
     parser = argparse.ArgumentParser(description="Analyzer")
@@ -240,13 +257,16 @@ def analyze_readme(args):
 
     # KMeans
     num_clusters = n_components
-    analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
-    # PCA
-    analyzer.vectorize().run_pca(n_components, top_n).save()
-    # LDA
-    analyzer.vectorize().run_lda(n_components, top_n).save()
-    # DBScan
-    analyzer.vectorize().run_dbscan(min_cluster_size, top_n).save()
+    # analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
+    # # PCA
+    # analyzer.vectorize().run_pca(n_components, top_n).save()
+    # # LDA
+    # analyzer.vectorize().run_lda(n_components, top_n).save()
+    # # DBScan
+    # analyzer.vectorize().run_dbscan(min_cluster_size, top_n).save()
+    tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan'])
+    for task in tasks:
+        task.save()
 
 
 def analyze_arxiv(args):
@@ -263,13 +283,17 @@ def analyze_arxiv(args):
     top_n = args.top_n
     # KMeans
     num_clusters = n_components
-    analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
-    # PCA
-    analyzer.vectorize().run_pca(n_components, top_n).save()
-    # LDA
-    analyzer.vectorize().run_lda(n_components, top_n).save()
-    # DBScan
-    analyzer.vectorize().run_dbscan(min_cluster_size, top_n).save()
+    # analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
+    # # PCA
+    # analyzer.vectorize().run_pca(n_components, top_n).save()
+    # # LDA
+    # analyzer.vectorize().run_lda(n_components, top_n).save()
+    # # DBScan
+    # analyzer.vectorize().run_dbscan(min_cluster_size, top_n).save()
+
+    tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan'])
+    for task in tasks:
+        task.save()
 
 
 def main(args):

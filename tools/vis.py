@@ -29,9 +29,9 @@ def plot_pca(keywords, X_pca, terms, path):
     """Plot a bubble chart of keywords using PCA-reduced dimensions."""
     top_keywords = [kw[0] for kw in keywords]
     top_scores = [kw[1] for kw in keywords]
-    import ipdb; ipdb.set_trace()
     # Filter PCA components for top keywords
     indices = [list(terms).index(kw) for kw in top_keywords]
+
     pca_x = X_pca[0, indices]
     pca_y = X_pca[0, indices]
 
@@ -51,22 +51,23 @@ def plot_pca(keywords, X_pca, terms, path):
 
 
 if __name__ == "__main__":
-    path = 'results/kmeans-cluster_8-topn_100/result.npy'
-    import ipdb; ipdb.set_trace()
+    source_list = ['readme', 'arxiv']
+    for source in source_list:
+        path = f'results/{source}/kmeans-cluster_8-topn_100/result.npy'
+        data = np.load(path, allow_pickle=True)
+        content = data.item()
+        keywords = content['kmeans_with_centroid']
+        keywords_ = []
+        for keyword_list in keywords:
+            keywords_ += keyword_list[:20]
 
-    data = np.load(path, allow_pickle=True)
-    content = data.item()
-    keywords = content['kmeans_with_centroid']
-    keywords_ = []
-    for keyword_list in keywords:
-        keywords_ += keyword_list[:20]
+        plot_kmeans(keywords_, path)
 
-    # plot_kmeans(keywords_, path)
-    path = 'results/pca-components_2-topn_100/result.npy'
-    data = np.load(path, allow_pickle=True)
-
-    content = data.item()
-    keywords = content['keywords']
-    X_pca = content['X_pca'].T
-    terms = content['terms']
-    plot_pca(keywords, X_pca, terms, path)
+    for source in source_list:
+        path = f'results/{source}/pca-components_2-topn_100/result.npy'
+        data = np.load(path, allow_pickle=True)
+        content = data.item()
+        keywords = content['keywords'][:50]
+        X_pca = content['X_pca'].T
+        terms = content['terms']
+        plot_pca(keywords, X_pca, terms, path)

@@ -91,36 +91,52 @@ class Analyzer:
         kmeans.fit(self.transformed_documents)
         terms = self.vectorizer.get_feature_names_out()
         keywords = []
+        keywords_with_centroid = []
         for cluster_idx in range(num_clusters):
             center = kmeans.cluster_centers_[cluster_idx]
             indices = center.argsort()[-top_n:][::-1]
             # keywords.append([(terms[i], cluster_idx, center[i]) for i in indices])
             keywords.append([terms[i] for i in indices])
+            keywords_with_centroid.append([(terms[i], cluster_idx, center[i]) for i in indices])
             print(f'Cluster {cluster_idx}: {keywords[-1]}')
 
         self.data['kmeans'] = keywords
+        self.data['kmeans_with_centroid'] = keywords_with_centroid
         return self
 
-    def run_pca(self, n_components=None, top_n=100):
+    def run_pca(self, n_components=2, top_n=50):
+        n_components = 2
+        top_n = 50
         self.cfg['pca:n_components'] = n_components
         self.cfg['pca:top_n'] = top_n
         self.cfg['pca'] = True
+
+        tfidf_scores = self.transformed_documents.toarray().flatten()
+        import ipdb; ipdb.set_trace()
+        terms = self.vectorizer.get_feature_names_out()
+        top_indices = tfidf_scores.argsort()[-top_n:][::-1]
+        keywords = [(terms[i], tfidf_scores[i]) for i in top_indices]
+
         pca = PCA(n_components=n_components)
-        pca.fit(self.transformed_documents.toarray())
+        X_pca = pca.fit_transform(self.transformed_documents.toarray())
 
         explained_variance = pca.explained_variance_ratio_
         cumulative_variance = explained_variance.cumsum()
 
         # Use the cumulative explained variance ratio to decide how many components to retain. Typically, choose enough components to capture 90%-95% of the variance.
-        num_components = (cumulative_variance >= 0.95).argmax() + 1
-        terms = self.vectorizer.get_feature_names_out()
-        keywords = []
-        for component_idx in range(num_components):
-            keywords.append([terms[i] for i in pca.components_[component_idx].argsort()[-top_n:][::-1]])
+        # num_components = (cumulative_variance >= 0.95).argmax() + 1
+        keywords2 = []
+        # for component_idx in range(num_components):
+        #     keywords2.append([terms[i] for i in pca.components_[component_idx].argsort()[-top_n:][::-1]])
+
 
         print(f"Principal Keywords: {keywords}")
 
-        self.data['pca'] = keywords
+        self.data['keywords'] = keywords
+        self.data['X_pca'] = X_pca
+        self.data['terms'] = terms
+        self.data['keywords2'] = keywords2
+
         # import matplotlib.pyplot as plt
         # plt.figure(figsize=(8, 5))
         # plt.plot(range(1, len(cumulative_variance)+1), cumulative_variance, marker='o', linestyle='--')
@@ -132,39 +148,39 @@ class Analyzer:
         # plt.show()
         return self
 
-    def run_lda(self, n_components, top_n=100):
-        self.cfg['lda:n_components'] = n_components
-        self.cfg['lda:top_n'] = top_n
-        self.cfg['lda'] = True
-        lda = LatentDirichletAllocation(n_components=n_components, random_state=42)
-        lda.fit(self.transformed_documents)
-        terms = self.vectorizer.get_feature_names_out()
-        keywords = []
-        for idx, topic in enumerate(lda.components_):
-            keywords.append([terms[i] for i in topic.argsort()[-top_n:]])
-            print(f"Topic {idx}: {keywords[-1]}")
-        self.data['lda'] = keywords
-        return self
+    # def run_lda(self, n_components, top_n=100):
+    #     self.cfg['lda:n_components'] = n_components
+    #     self.cfg['lda:top_n'] = top_n
+    #     self.cfg['lda'] = True
+    #     lda = LatentDirichletAllocation(n_components=n_components, random_state=42)
+    #     lda.fit(self.transformed_documents)
+    #     terms = self.vectorizer.get_feature_names_out()
+    #     keywords = []
+    #     for idx, topic in enumerate(lda.components_):
+    #         keywords.append([terms[i] for i in topic.argsort()[-top_n:]])
+    #         print(f"Topic {idx}: {keywords[-1]}")
+    #     self.data['lda'] = keywords
+    #     return self
 
-    def run_dbscan(self, min_cluster_size=3, top_n=100):
-        # FIXME: Not test yet
-        self.cfg['dbscan:min_cluster_size'] = min_cluster_size
-        self.cfg['dbscan:top_n'] = top_n
-        self.cfg['dbscan'] = True
+    # def run_dbscan(self, min_cluster_size=3, top_n=100):
+    #     # FIXME: Not test yet
+    #     self.cfg['dbscan:min_cluster_size'] = min_cluster_size
+    #     self.cfg['dbscan:top_n'] = top_n
+    #     self.cfg['dbscan'] = True
 
-        hdb = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size)
-        clusters = hdb.fit_predict(self.transformed_documents.toarray())
-        terms = self.vectorizer.get_feature_names_out()
-        keywords = []
-        for cluster_label in set(clusters):
-            if cluster_label == -1:  # Noise cluster
-                continue
-            cluster_indices = [i for i, x in enumerate(clusters) if x == cluster_label]
-            keywords.append([terms[i] for i in cluster_indices][:top_n])
-            print(f"Cluster {cluster_label}: {keywords[-1]}")
+    #     hdb = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size)
+    #     clusters = hdb.fit_predict(self.transformed_documents.toarray())
+    #     terms = self.vectorizer.get_feature_names_out()
+    #     keywords = []
+    #     for cluster_label in set(clusters):
+    #         if cluster_label == -1:  # Noise cluster
+    #             continue
+    #         cluster_indices = [i for i, x in enumerate(clusters) if x == cluster_label]
+    #         keywords.append([terms[i] for i in cluster_indices][:top_n])
+    #         print(f"Cluster {cluster_label}: {keywords[-1]}")
 
-        self.data['dbscan'] = keywords
-        return self
+    #     self.data['dbscan'] = keywords
+    #     return self
 
     # def plot(self, keywords):
     #     """Plot a bubble chart of keywords."""
@@ -266,7 +282,7 @@ def analyze_readme(args):
 
     # KMeans
     num_clusters = n_components
-    # analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
+    analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
     # # PCA
     # analyzer.vectorize().run_pca(n_components, top_n).save()
     # # LDA
@@ -274,10 +290,11 @@ def analyze_readme(args):
     # # DBScan
     # analyzer.vectorize().run_dbscan(min_cluster_size, top_n).save()
 
-    method_list = ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan']
-    tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in method_list)
-    for task in tasks:
-        task.save('results/readme')
+    # method_list = ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan']
+    # method_list = ['run_pca']
+    # tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in method_list)
+    # for task in tasks:
+    #     task.save('results/readme')
 
 
 def analyze_arxiv(args):
@@ -301,7 +318,8 @@ def analyze_arxiv(args):
     # analyzer.vectorize().run_lda(n_components, top_n).save()
     # # DBScan
     # analyzer.vectorize().run_dbscan(min_cluster_size, top_n).save()
-    method_list = ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan']
+    # method_list = ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan']
+    method_list = ['run_pca', 'run_kmeans']
     tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in method_list)
     for task in tasks:
         task.save('results/arxiv')

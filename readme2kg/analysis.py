@@ -113,7 +113,6 @@ class Analyzer:
         self.cfg['pca:top_n'] = top_n
         self.cfg['pca'] = True
 
-        # tfidf_scores = self.transformed_documents.toarray().flatten()
         tfidf_scores = self.transformed_documents.toarray().sum(axis=0)
 
         terms = self.vectorizer.get_feature_names_out()
@@ -122,7 +121,6 @@ class Analyzer:
         pca = PCA(n_components=n_components)
         X_pca = pca.fit_transform(self.transformed_documents.toarray())
 
-        import ipdb; ipdb.set_trace()
         explained_variance = pca.explained_variance_ratio_
         cumulative_variance = explained_variance.cumsum()
 
@@ -132,7 +130,6 @@ class Analyzer:
         for component_idx in range(n_components):
             keywords2.append([terms[i] for i in pca.components_[component_idx].argsort()[-top_n:][::-1]])
 
-
         print(f"Principal Keywords: {keywords}")
         print(f"Principal Keywords 2: {keywords2}")
 
@@ -140,15 +137,6 @@ class Analyzer:
         self.data['keywords2'] = keywords2
         self.data['X_pca'] = X_pca
         self.data['terms'] = terms
-        # import matplotlib.pyplot as plt
-        # plt.figure(figsize=(8, 5))
-        # plt.plot(range(1, len(cumulative_variance)+1), cumulative_variance, marker='o', linestyle='--')
-        # plt.title('Cumulative Explained Variance by PCA Components')
-        # plt.xlabel('Number of Components')
-        # plt.ylabel('Cumulative Explained Variance')
-        # plt.axhline(y=0.95, color='r', linestyle='--')
-        # plt.grid(True)
-        # plt.show()
         return self
 
     # def run_lda(self, n_components, top_n=100):
@@ -227,7 +215,7 @@ class ArxivAnalyzer(Analyzer):
         lemmatizer = WordNetLemmatizer()
         tokens = word_tokenize(text.lower())
         tokens = [lemmatizer.lemmatize(word) for word in tokens if word not in stop_words and word not in string.punctuation]
-        return tokens
+        return " ".join(tokens)
 
 
 class ReadmeAnalyzer(Analyzer):
@@ -236,11 +224,12 @@ class ReadmeAnalyzer(Analyzer):
         self.documents = self.process_all_files(file_paths)
 
     def preprocess_readme_v1(self, text):
-        self._impl_notes.append('use raw text')
+        self._impl_notes.add('use raw text')
         return text
 
     def preprocess_readme_v2(self, text):
         """Clean and preprocess README content."""
+        text = self.preprocess_readme_v1(text)
         self._impl_notes.add('clean markdown and html tags')
         # Remove Markdown or HTML tags
         text = re.sub(r'\[.*?\]\(.*?\)', '', text)  # Remove Markdown links
@@ -251,10 +240,19 @@ class ReadmeAnalyzer(Analyzer):
         text = re.sub(r'\s+', ' ', text).strip()
         return text
 
+    def preprocess_readme_v3(self, text):
+        self._impl_notes.add('lemmatizer')
+        # text = self.preprocess_readme_v2(text)
+        stop_words = set(nltk.corpus.stopwords.words('english'))
+        lemmatizer = WordNetLemmatizer()
+        tokens = word_tokenize(text.lower())
+        tokens = [lemmatizer.lemmatize(word) for word in tokens if word not in stop_words and word not in string.punctuation]
+        return " ".join(tokens)
+
     def process_file(self, file_path):
         with open(file_path, 'r', encoding='utf-8') as file:
             raw_text = file.read()
-        return self.preprocess_readme_v2(raw_text)
+        return self.preprocess_readme_v3(raw_text)
 
     def process_all_files(self, file_paths):
         if self.debug is True:
@@ -285,19 +283,19 @@ def analyze_readme(args):
 
     # KMeans
     num_clusters = n_components
-    # analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
+    # analyzer.vectorize().run_kmeans(num_clusters, top_n).save('results/readme')
     # # PCA
-    analyzer.vectorize().run_pca(n_components, top_n).save()
+    # analyzer.vectorize().run_pca(n_components, top_n).save('results/readme')
     # # LDA
     # analyzer.vectorize().run_lda(n_components, top_n).save()
     # # DBScan
     # analyzer.vectorize().run_dbscan(min_cluster_size, top_n).save()
 
     # method_list = ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan']
-    # method_list = ['run_pca']
-    # tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in method_list)
-    # for task in tasks:
-    #     task.save('results/readme')
+    method_list = ['run_pca', 'run_kmeans']
+    tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in method_list)
+    for task in tasks:
+        task.save('results/readme')
 
 
 def analyze_arxiv(args):
@@ -314,9 +312,9 @@ def analyze_arxiv(args):
     top_n = args.top_n
     # KMeans
     num_clusters = n_components
-    # analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
-    # # PCA
-    # analyzer.vectorize().run_pca(n_components, top_n).save()
+    # analyzer.vectorize().run_kmeans(num_clusters, top_n).save('results/arxiv')
+    # # # PCA
+    # analyzer.vectorize().run_pca(n_components, top_n).save('results/arxiv')
     # # LDA
     # analyzer.vectorize().run_lda(n_components, top_n).save()
     # # DBScan

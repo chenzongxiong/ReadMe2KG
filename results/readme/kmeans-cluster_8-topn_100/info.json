@@ -1,0 +1,1 @@
+{"vectorize:max_features": 1000, "kmeans:num_clusters": 8, "kmeans:top_n": 100, "kmeans": true, "impl_notes": "lemmatizer"}

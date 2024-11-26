@@ -4,6 +4,7 @@ import nltk
 import string
 import hdbscan
 
+import numpy as np
 from bs4 import BeautifulSoup
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
@@ -46,8 +47,9 @@ class Analyzer:
         if self.vectorizer:
             return self
 
-        self.cfg['vectorize:max_features'] = None
-        self.vectorizer = TfidfVectorizer(max_features=None, stop_words='english')
+        max_features = 1000
+        self.cfg['vectorize:max_features'] = max_features
+        self.vectorizer = TfidfVectorizer(max_features=max_features, stop_words='english')
         self.transformed_documents = self.vectorizer.fit_transform(self.documents)
         return self
 
@@ -77,8 +79,7 @@ class Analyzer:
         with open(os.path.join(path, 'info.json'), 'w') as fd:
             json.dump(self.cfg, fd)
 
-        with open(os.path.join(path, 'result.json'), 'w') as fd:
-            json.dump(self.data, fd)
+        np.save(os.path.join(path, 'result.npy'), self.data, allow_pickle=True)
 
     def run_kmeans(self, num_clusters=8, top_n=100):
         num_clusters = 8 if num_clusters is None else num_clusters
@@ -104,15 +105,16 @@ class Analyzer:
         self.data['kmeans_with_centroid'] = keywords_with_centroid
         return self
 
-    def run_pca(self, n_components=2, top_n=50):
+    def run_pca(self, n_components=2, top_n=100):
         n_components = 2
         top_n = 50
         self.cfg['pca:n_components'] = n_components
         self.cfg['pca:top_n'] = top_n
         self.cfg['pca'] = True
 
-        tfidf_scores = self.transformed_documents.toarray().flatten()
-        import ipdb; ipdb.set_trace()
+        # tfidf_scores = self.transformed_documents.toarray().flatten()
+        tfidf_scores = self.transformed_documents.toarray().sum(axis=0)
+
         terms = self.vectorizer.get_feature_names_out()
         top_indices = tfidf_scores.argsort()[-top_n:][::-1]
         keywords = [(terms[i], tfidf_scores[i]) for i in top_indices]
@@ -126,17 +128,17 @@ class Analyzer:
         # Use the cumulative explained variance ratio to decide how many components to retain. Typically, choose enough components to capture 90%-95% of the variance.
         # num_components = (cumulative_variance >= 0.95).argmax() + 1
         keywords2 = []
-        # for component_idx in range(num_components):
-        #     keywords2.append([terms[i] for i in pca.components_[component_idx].argsort()[-top_n:][::-1]])
+        for component_idx in range(n_components):
+            keywords2.append([terms[i] for i in pca.components_[component_idx].argsort()[-top_n:][::-1]])
 
 
         print(f"Principal Keywords: {keywords}")
+        print(f"Principal Keywords 2: {keywords2}")
 
         self.data['keywords'] = keywords
+        self.data['keywords2'] = keywords2
         self.data['X_pca'] = X_pca
         self.data['terms'] = terms
-        self.data['keywords2'] = keywords2
-
         # import matplotlib.pyplot as plt
         # plt.figure(figsize=(8, 5))
         # plt.plot(range(1, len(cumulative_variance)+1), cumulative_variance, marker='o', linestyle='--')
@@ -282,9 +284,9 @@ def analyze_readme(args):
 
     # KMeans
     num_clusters = n_components
-    analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
+    # analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
     # # PCA
-    # analyzer.vectorize().run_pca(n_components, top_n).save()
+    analyzer.vectorize().run_pca(n_components, top_n).save()
     # # LDA
     # analyzer.vectorize().run_lda(n_components, top_n).save()
     # # DBScan

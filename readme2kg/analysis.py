@@ -118,10 +118,10 @@ class Analyzer:
         terms = self.vectorizer.get_feature_names_out()
         top_indices = tfidf_scores.argsort()[-top_n:][::-1]
         keywords = [(terms[i], tfidf_scores[i]) for i in top_indices]
-
         pca = PCA(n_components=n_components)
         X_pca = pca.fit_transform(self.transformed_documents.toarray())
 
+        import ipdb; ipdb.set_trace()
         explained_variance = pca.explained_variance_ratio_
         cumulative_variance = explained_variance.cumsum()
 
@@ -284,7 +284,7 @@ def analyze_readme(args):
 
     # KMeans
     num_clusters = n_components
-    # analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
+    analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
     # # PCA
     analyzer.vectorize().run_pca(n_components, top_n).save()
     # # LDA

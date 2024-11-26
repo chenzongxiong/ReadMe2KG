@@ -20,8 +20,8 @@ def plot_kmeans(keywords, path):
     plt.ylabel("TF-IDF Score", fontsize=12)
     plt.yscale('log')
     plt.colorbar(scatter, label="Cluster")
-    # plt.show()
-    plt.savefig(f"{path}.png", bbox_inches='tight')
+    plt.show()
+    # plt.savefig(f"{path}.png", bbox_inches='tight')
 
 
 # Step 3: Bubble Chart Visualization
@@ -46,12 +46,14 @@ def plot_pca(keywords, X_pca, terms, path):
     plt.ylabel("PCA Component 2", fontsize=12)
     plt.colorbar(scatter, label="PCA Combination")
     plt.yscale('log')
-    # plt.show()
-    plt.savefig(f"{path}.png", bbox_inches='tight')
+    # plt.savefig(f"{path}.pdf", bbox_inches='tight')
+    plt.show()
 
 
 if __name__ == "__main__":
-    source_list = ['readme', 'arxiv']
+    # source_list = ['readme', 'arxiv']
+    source_list = ['arxiv']
+    # source_list = ['readme']
     for source in source_list:
         path = f'results/{source}/kmeans-cluster_8-topn_100/result.npy'
         data = np.load(path, allow_pickle=True)

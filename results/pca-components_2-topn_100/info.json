@@ -1,1 +1,0 @@
-{"vectorize:max_features": 1000, "pca:n_components": 2, "pca:top_n": 100, "pca": true, "impl_notes": "clean markdown and html tags"}

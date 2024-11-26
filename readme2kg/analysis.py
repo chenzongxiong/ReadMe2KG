@@ -107,7 +107,8 @@ class Analyzer:
 
     def run_pca(self, n_components=2, top_n=100):
         n_components = 2
-        top_n = 50
+        top_n = 100
+
         self.cfg['pca:n_components'] = n_components
         self.cfg['pca:top_n'] = top_n
         self.cfg['pca'] = True

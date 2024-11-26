@@ -284,7 +284,7 @@ def analyze_readme(args):
 
     # KMeans
     num_clusters = n_components
-    analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
+    # analyzer.vectorize().run_kmeans(num_clusters, top_n).save()
     # # PCA
     analyzer.vectorize().run_pca(n_components, top_n).save()
     # # LDA

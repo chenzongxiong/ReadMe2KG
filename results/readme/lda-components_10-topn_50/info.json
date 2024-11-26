@@ -1,0 +1,1 @@
+{"vectorize:max_features": null, "lda:n_components": 10, "lda:top_n": 50, "lda": true, "impl_notes": "clean markdown and html tags"}

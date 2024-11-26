@@ -277,7 +277,7 @@ def analyze_readme(args):
     method_list = ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan']
     tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in method_list)
     for task in tasks:
-        task.save()
+        task.save('results/readme')
 
 
 def analyze_arxiv(args):
@@ -304,7 +304,7 @@ def analyze_arxiv(args):
     method_list = ['run_kmeans', 'run_pca', 'run_lda', 'run_dbscan']
     tasks = Parallel(n_jobs=-1)(delayed(getattr(analyzer.vectorize(), method))(n_components, top_n) for method in method_list)
     for task in tasks:
-        task.save()
+        task.save('results/arxiv')
 
 
 def get_parse():
